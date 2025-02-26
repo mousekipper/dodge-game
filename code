@@ -1,0 +1,158 @@
+import pygame
+import random
+import math
+
+
+pygame.init()
+
+
+SCREEN_WIDTH, SCREEN_HEIGHT = 800, 600
+screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+pygame.display.set_caption("총알 피하기 게임")
+
+
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+BLUE = (0, 0, 255)
+
+
+player_size = 30
+player_x = SCREEN_WIDTH // 2#da
+player_y = SCREEN_HEIGHT - 50
+player_speed = 7
+dash_distance = 104 
+dash_cooldown = 120  
+dash_timer = 0
+
+
+bullets = []
+bullet_speed = 20
+laser_color = RED
+curve_pattern_speed = 5
+
+
+clock = pygame.time.Clock()
+running = True
+score = 0
+
+font = pygame.font.SysFont("Arial", 24)
+
+
+def move_player(keys, x, y):
+    global dash_timer
+    if dash_timer > 0:
+        dash_timer -= 1
+
+    # 방향키 또는 WASD
+    if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+        if x > 0:
+            x -= player_speed
+    if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+        if x < SCREEN_WIDTH - player_size:
+            x += player_speed
+    if keys[pygame.K_UP] or keys[pygame.K_w]:
+        if y > 0:
+            y -= player_speed
+    if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+        if y < SCREEN_HEIGHT - player_size:
+            y += player_speed
+
+    # 스페이스바로 대시
+    if keys[pygame.K_SPACE] and dash_timer == 0:
+        dash_timer = dash_cooldown
+        if keys[pygame.K_LEFT] or keys[pygame.K_a]:
+            x = max(x - dash_distance, 0)
+        if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
+            x = min(x + dash_distance, SCREEN_WIDTH - player_size)
+        if keys[pygame.K_UP] or keys[pygame.K_w]:
+            y = max(y - dash_distance, 0)
+        if keys[pygame.K_DOWN] or keys[pygame.K_s]:
+            y = min(y + dash_distance, SCREEN_HEIGHT - player_size)
+
+    return x, y
+
+
+def add_bullet():
+    pattern = random.choice(["straight", "curve", "laser"])
+    if pattern == "straight":
+        x1 = random.randint(0, SCREEN_WIDTH)
+        x2 = random.randint(0, SCREEN_WIDTH)
+        bullets.append({"x": x1, "y": -20, "type": "straight"})
+        bullets.append({"x": x2, "y": -20, "type": "straight"})
+    elif pattern == "curve":
+        x1 = random.randint(0, SCREEN_WIDTH)
+        x2 = random.randint(0, SCREEN_WIDTH)
+        bullets.append({"x": x1, "y": -20, "angle": random.uniform(0, 2 * math.pi), "type": "curve"})
+        bullets.append({"x": x2, "y": -20, "angle": random.uniform(0, 2 * math.pi), "type": "curve"})
+    elif pattern == "laser":
+        x1 = random.randint(0, SCREEN_WIDTH)
+        x2 = random.randint(0, SCREEN_WIDTH)
+        bullets.append({"x": x1, "type": "laser", "timer": 60})
+        bullets.append({"x": x2, "type": "laser", "timer": 60})
+
+
+def move_and_render_bullets():
+    global running
+    global score
+    for bullet in bullets[:]:
+        if bullet["type"] == "straight":
+            bullet["y"] += bullet_speed
+            pygame.draw.circle(screen, BLUE, (bullet["x"], bullet["y"]), 10)
+        elif bullet["type"] == "curve":
+            bullet["y"] += curve_pattern_speed
+            bullet["x"] += int(5 * math.sin(bullet["angle"]))
+            bullet["angle"] += 0.1  # 곡선 모양
+            pygame.draw.circle(screen, BLUE, (bullet["x"], bullet["y"]), 10)
+        elif bullet["type"] == "laser":
+            bullet["timer"] -= 1
+            pygame.draw.line(screen, laser_color, (bullet["x"], 0), (bullet["x"], SCREEN_HEIGHT), 2)
+            if bullet["timer"] <= 0:
+                bullets.remove(bullet)
+                continue
+
+        
+        if bullet["type"] != "laser" and bullet["y"] > SCREEN_HEIGHT:
+            bullets.remove(bullet)
+
+       
+        if bullet["type"] in ["straight", "curve"]:
+            if player_x < bullet["x"] < player_x + player_size and player_y < bullet["y"] < player_y + player_size:
+                running = False
+        elif bullet["type"] == "laser":
+            if player_x < bullet["x"] < player_x + player_size:
+                running = False
+
+    
+    score += 1
+
+
+while running:
+    screen.fill(BLACK)
+    keys = pygame.key.get_pressed()
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    
+    player_x, player_y = move_player(keys, player_x, player_y)
+
+    
+    pygame.draw.rect(screen, WHITE, (player_x, player_y, player_size, player_size))
+
+    
+    if random.random() < 0.02:  # 2% 확률로 총알 생성
+        add_bullet()
+
+    
+    move_and_render_bullets()
+
+ 
+    score_text = font.render(f"Score: {score}", True, WHITE)
+    screen.blit(score_text, (10, 10))
+
+    
+    pygame.display.flip()
+    clock.tick(60)
+
+pygame.quit()
